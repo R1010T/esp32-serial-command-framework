@@ -10,7 +10,8 @@ project(proto_tests C)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# The protocol code lives where the ESP32 build will also find it (Milestone 2).
+# The protocol code. The ESP32 firmware builds the same files
+# (components/proto/CMakeLists.txt is the ESP-IDF side; it isn't used here).
 set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../components/proto)
 
 # Unity test framework (git submodule in test/unity)
@@ -22,13 +23,14 @@ add_library(proto STATIC
     ${PROTO_DIR}/crc16.c
     ${PROTO_DIR}/frame.c
     ${PROTO_DIR}/parser.c
+    ${PROTO_DIR}/dispatch.c
 )
 target_include_directories(proto PUBLIC ${PROTO_DIR}/include)
 target_compile_options(proto PRIVATE -Wall -Wextra -Werror)
 
 enable_testing()
 
-foreach(t test_crc16 test_frame test_parser)
+foreach(t test_crc16 test_frame test_parser test_cmd_handler)
     add_executable(${t} ${t}.c)
     target_link_libraries(${t} proto unity)
     target_compile_options(${t} PRIVATE -Wall -Wextra -Werror)

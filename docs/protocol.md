@@ -3,8 +3,9 @@
 Plain version: the laptop and the ESP32 talk in fixed-shape packets. Every packet has a start marker, a small header, the data, and a damage check.
 
 ## 1. Link
-- UART, 115200 baud, 8N1 (8 data bits, no parity, 1 stop bit).
-- Which USB port carries it (COM4 or COM5) is decided at file 8.
+- Now (Milestone 2): the board's native USB port (USB-Serial-JTAG, the OTG port; COM4 on the laptop). It's USB, so the baud rate setting doesn't apply.
+- The same port carries boot messages and logs. The firmware switches logging off once the protocol starts, so log text can't land inside a packet. Text sent before that is skipped by the laptop's reader: plain text never contains the `0xAA` sync byte.
+- Planned: UART0 through the board's second USB-C port (COM5), 115200 baud, 8N1 (8 data bits, no parity, 1 stop bit), once a second cable is available. Only the transport file (`main/transport_*.c`) changes.
 - One command in flight at a time. The laptop waits for the reply, or a timeout, before it sends the next command.
 
 ## 2. Packet layout
@@ -60,12 +61,13 @@ Responses (ESP32 → laptop) have the high bit set (`0x80`–`0xFF`).
 |---|---|---|
 | `0x80` | ACK | optional data |
 | `0x81` | NACK | 1 byte: error code (section 5) |
-| `0x82` | STATUS | TBD (uptime, error counters) |
+| `0x82` | STATUS | 32 bytes: 8 counters (section 10) |
 | `0x83` | TELEMETRY | TBD |
 
 - A reply carries the **same Seq** as the command it answers.
 - TELEMETRY packets use the ESP32's own counter in Seq.
 - Payloads marked TBD get defined in the file that needs them.
+- Milestone 2 builds PING and GET_STATUS. The other commands answer NACK `0x01` (UNKNOWN_TYPE) until they're built.
 
 ## 5. NACK error codes
 | Code | Name | When |
@@ -128,11 +130,24 @@ Length 1, payload `01` = UNKNOWN_TYPE, CRC = `0xBE69`.
 
 Without the CRC, the ESP32 would have run `0x03` = GET_CONFIG instead of PING.
 
-## 10. Error counters (reported in STATUS)
-`err_len` · `err_crc` · `err_timeout` · `dup` · `seq_gap` · `nack_sent`
+## 10. STATUS payload: the counters
+8 numbers, 4 bytes each, low byte first: 32 bytes.
+
+| Offset | Name | Counts |
+|---|---|---|
+| 0 | uptime_ms | Milliseconds since boot |
+| 4 | frames_ok | Packets that passed CRC |
+| 8 | err_len | Length above 128 |
+| 12 | err_crc | CRC mismatches |
+| 16 | err_timeout | Packets that stalled for more than 50 ms |
+| 20 | dup | Repeats answered from the stored reply |
+| 24 | seq_gap | Seq jumps: lost commands, or a new cli.py run |
+| 28 | nack_sent | NACKs built |
 
 ## 11. Known limits of v1
 - When the ESP32 reboots it forgets the last Seq. A retry that arrives right after a reboot can run a command twice.
 - Only one command can be in flight at a time.
 - No authentication: anyone with the cable can send commands.
 - No byte stuffing. It isn't needed, because Length plus CRC handle false starts.
+- Logs are off while the protocol runs, because logs and packets share one USB port.
+- cli.py starts each run at a random Seq. If that Seq and the command bytes match the last packet the ESP32 handled, the run gets the stored reply (about 1 run in 256 of the same command).

@@ -1,0 +1,16 @@
+# ------------- Target -------------
+CONFIG_IDF_TARGET="esp32s3"
+
+# ------------- Flash --------------
+# Freenove ESP32-S3-WROOM N8R8: 8 MB flash
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+# ------------- Console ------------
+# Boot messages and logs go to the native USB port (OTG port, COM4).
+# The same port carries the protocol; main.c switches logging off once
+# the protocol starts, so log text can't land inside a packet.
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+
+# ------------- FreeRTOS -----------
+# 1 ms tick, so short timeouts are exact
+CONFIG_FREERTOS_HZ=1000
